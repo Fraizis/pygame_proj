@@ -110,7 +110,7 @@ class PygameManager:
         self.x, self.y = self.start_pos
         self.snake = Snake(self.pg, self.x, self.y)
         self.food = Food(height=self.height, width=self.width)
-        self.game_mod = GameMod
+        self.game_mod = GameMod()
         print('NEW GAME')
         # self.game_mod.game_started = False
         # self.game_mod.end_game = False
@@ -120,8 +120,7 @@ class PygameManager:
     def run_program(self):
         self.init_pygame()
         screen = self.create_screen()
-        snake_body = self.new_game()
-        # FPS = 60
+        self.new_game()
         text_size = 50
 
         font = self.pg.font.Font(None, text_size)
@@ -129,9 +128,7 @@ class PygameManager:
         text_pause = font.render('PAUSE', True, (255, 255, 255))
         start_text = font.render('PRESS ENTER TO START', True, (255, 255, 255))
         end_border = (9, 33)
-        n = 1
 
-        # start = self.pg.time.get_ticks()
 
         while self.game_mod.running:
             self.screen_fill(screen, self.color.background['light_blue'])
@@ -145,7 +142,7 @@ class PygameManager:
                 if event.type == self.pg.QUIT:
                     self.game_mod.running = False
                 elif event.type == self.pg.KEYDOWN:
-                    # print(event.key)
+                    print(event.key)
                     if event.key == 27:
                         self.new_game()
                     if event.key == 13 and not self.game_mod.game_started:
@@ -156,33 +153,33 @@ class PygameManager:
                             if event.key == 1073741904 and self.snake.speed_x <= 0:
                                 self.snake.speed_x, self.snake.speed_y = -self.snake.snake_speed, 0
                                 print('LEFT')
-                            elif event.key == 1073741903 and self.snake.speed_x >= 0:
+                            if event.key == 1073741903 and self.snake.speed_x >= 0:
                                 self.snake.speed_x, self.snake.speed_y = self.snake.snake_speed, 0
                                 print('RIGHT')
-                            elif event.key == 1073741906 and self.snake.speed_y <= 0:
+                            if event.key == 1073741906 and self.snake.speed_y <= 0:
                                 self.snake.speed_x, self.snake.speed_y = 0, -self.snake.snake_speed
                                 print('UP')
-                            elif event.key == 1073741905 and self.snake.speed_y >= 0:
+                            if event.key == 1073741905 and self.snake.speed_y >= 0:
                                 self.snake.speed_x, self.snake.speed_y = 0, self.snake.snake_speed
                                 print('DOWN')
-                            if event.key == 32 and self.game_mod.game_started:
+                            if event.key == 32:
                                 self.snake.pause_x, self.snake.pause_y = self.snake.speed_x, self.snake.speed_y
                                 self.snake.speed_x, self.snake.speed_y = 0, 0
                                 self.game_mod.pause = True
                                 print('PAUSE')
-                        else:
+                        elif self.game_mod.pause and event.key == 32:
                             self.game_mod.pause = False
                             self.snake.speed_x, self.snake.speed_y = self.snake.pause_x, self.snake.pause_y
                             print('UNPAUSE')
-
-                    # elif event.key == 1073741904 and event.key == 1073741905:
-                    #     print()
-                    # elif event.key == 1073741904 and event.key == 1073741906:
-                    #     print()
-                    # elif event.key == 1073741903 and event.key == 1073741905:
-                    #     print()
-                    # elif event.key == 1073741903 and event.key == 1073741906:
-                    #     print()
+                            # if event.key == 32 and self.game_mod.game_started:
+                            #     self.snake.pause_x, self.snake.pause_y = self.snake.speed_x, self.snake.speed_y
+                            #     self.snake.speed_x, self.snake.speed_y = 0, 0
+                            #     self.game_mod.pause = True
+                            #     print('PAUSE')
+                        # else:
+                            self.game_mod.pause = False
+                            self.snake.speed_x, self.snake.speed_y = self.snake.pause_x, self.snake.pause_y
+                            print('UNPAUSE')
 
                 # elif event.type == pygame.MOUSEBUTTONDOWN:
                 #     print(f"Клик мыши в позиции {event.pos}")
@@ -192,15 +189,14 @@ class PygameManager:
             self.snake.x += self.snake.speed_x
             self.snake.y += self.snake.speed_y
 
-            # snake_part = self.pg.Rect((self.snake.x, self.snake.y), (self.snake.snake_size, self.snake.snake_size))
-            self.snake.insert_body(self.snake.x, self.snake.y)
+            snake_part = self.pg.Rect((self.snake.x, self.snake.y), (self.snake.snake_size, self.snake.snake_size))
+            # self.snake.insert_body(self.snake.x, self.snake.y)
             # snake_body = [snake_part]
-            # snake_body.insert(0, snake_part)
-            # snake_body = snake_body[:self.snake.snake_length]
+            self.snake.snake_body.insert(0, snake_part)
+            snake_body = self.snake.snake_body[:self.snake.snake_length]
 
-            # print(snake_body)
 
-            for s_p in self.snake.snake_body:
+            for s_p in snake_body:
                 self.pg.draw.rect(screen, self.color.background['light_green'], s_p)
 
             self.pg.draw.lines(screen, (102, 102, 0), True, [(1, 598), (798, 598), (798, 1), (1, 1)], 10)
@@ -211,6 +207,7 @@ class PygameManager:
                 self.game_mod.end_game = True
                 self.snake.speed_x, self.snake.speed_y = 0, 0
 
+
             if not self.food.food_lst:
                 coord = self.food.food_coord(self.snake.snake_body[0], self.snake.snake_body[-1], self.snake.snake_size)
                 self.food.food_lst.append(self.pg.Rect(coord, (self.food.food_size, self.food.food_size)))
@@ -218,13 +215,12 @@ class PygameManager:
                 for food in self.food.food_lst:
                     self.pg.draw.rect(screen, self.color.background['yellow'], food)
 
-                if self.snake.snake_body[0].colliderect(self.food.food_lst[0]):
+                if snake_body[0].colliderect(self.food.food_lst[0]):
                     self.snake.snake_length += 20
                     self.snake.snake_speed += 0.1
                     self.food.food_lst.pop()
 
-            print(self.snake.snake_length)
-            print(n)
+            # print(self.snake.snake_length)
 
             if self.game_mod.pause:
                 screen.blit(text_pause, (330, 250))
