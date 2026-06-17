@@ -1,40 +1,94 @@
-import os
 import random
-import threading
-import time
-from time import sleep
+
+from dataclasses import dataclass
+from typing import ClassVar
 
 import pygame
-import requests
+
+
+@dataclass
+class GameMod:
+    game_started: bool = False
+    end_game: bool = False
+    running: bool = True
+    pause: bool = False
+
+
+@dataclass
+class Color:
+    background: ClassVar[dict[str, tuple]] = {
+        'blue': (135, 206, 250),
+        'light_blue': (76, 166, 204),
+        'purple': (66, 28, 161),
+        'light_green': (121, 246, 157),
+        'orange': (242, 58, 28),
+        'yellow': (255, 255, 0),
+        'white': (255, 255, 255),
+        'ert': (51, 25, 0)
+    }
+
+
+class Snake:
+    def __init__(self, snake_game, x, y):
+        self.snake_size = 30
+        self.snake_speed = 2
+        self.snake_length = 1
+        self.snake_game = snake_game
+        self.x, self.y = (x, y)
+        self.speed_x, self.speed_y = (0, 0)
+        self.pause_x, self.pause_y = (0, 0)
+        self.snake_part = self.snake_game.Rect((self.x, self.y), (self.snake_size, self.snake_size))
+        self.snake_body = [self.snake_part]
+
+    def insert_body(self, x, y):
+        self.snake_body.append(self.snake_game.Rect((x, y), (self.snake_size, self.snake_size)))
+        # return self.snake_body[:self.snake_length]
+
+
+class Food:
+    def __init__(self, height, width):
+        self.food_size = 15
+        self.food_lst = []
+        self.border_x = (self.food_size, height - self.food_size)
+        self.border_y = (self.food_size, width - self.food_size)
+
+    def food_coord(self, snake_head, snake_tail, snake_size):
+        snake_x = (snake_head[0], snake_tail[0] + snake_size)
+        snake_y = (snake_head[1], snake_tail[1] + snake_size)
+        # Выбираем новые координаты для еды, исключая тело змейки и границы
+        new_food_x = random.choice(
+            list(set(range(self.border_x[0], self.border_x[1])) - set(range(snake_x[0], snake_x[1] + 1)))
+        )
+        new_food_y = random.choice(
+            list(set(range(self.border_y[0], self.border_y[1])) - set(range(snake_y[0], snake_y[1] + 1)))
+        )
+        return new_food_x, new_food_y
 
 
 class PygameManager:
-    def __init__(self, py_game, height, width, icon_path):
+    def __init__(self, py_game, height, width, game_name, icon):
         self.pg = py_game
+        self.game_name = game_name
         self.height = height
         self.width = width
-        self.icon = icon_path
-        self.background = {
-            'blue': (135, 206, 250),
-            'light_blue': (76, 166, 204),
-            'purple': (66, 28, 161),
-            'light_green': (121, 246, 157),
-            'orange': (242, 58, 28),
-            'yellow': (255, 255, 0),
-            'white': (255, 255, 255),
-            'ert': (51, 25, 0)
-        }
+        self.icon = icon
+        self.start_pos = (self.height / 2, self.width / 2)
+        self.x, self.y = self.start_pos
+        self.snake = None
+        self.food = None
+        self.game_mod = None
+        self.color = Color
 
     def create_screen(self):
         new_screen = self.pg.display.set_mode((self.height, self.width))
-        self.pg.display.set_caption('Game')
+        self.pg.display.set_caption(self.game_name)
         print(f'Окно размером {self.height} * {self.width} создано!')
         return new_screen
 
-    def change_icon(self):
+    def set_new_icon(self):
         try:
-            icon = self.pg.image.load(self.icon)
-            self.pg.display.set_icon(icon)
+            new_icon = self.pg.image.load(self.icon)
+            self.pg.display.set_icon(new_icon)
         except FileNotFoundError as exc:
             print(exc)
 
@@ -52,108 +106,131 @@ class PygameManager:
     def screen_fill(self, screen, color):
         screen.fill(color)
 
+    def new_game(self):
+        self.x, self.y = self.start_pos
+        self.snake = Snake(self.pg, self.x, self.y)
+        self.food = Food(height=self.height, width=self.width)
+        self.game_mod = GameMod
+        print('NEW GAME')
+        # self.game_mod.game_started = False
+        # self.game_mod.end_game = False
+        # self.game_mod.running = True
+        # self.game_mod.pause = False
+
     def run_program(self):
         self.init_pygame()
-        self.change_icon()
         screen = self.create_screen()
-        FPS = 60
-        clock = self.pg.time.Clock()
-        snake_direction = 'RIGHT'
-
-        r, g, b = (random.randint(0, 255) for i in range(3))
-
-        speed_x, speed_y = 0, 0
-        timer = pygame.time.get_ticks()
-        x, y = 400, 300
-        size = 20
+        snake_body = self.new_game()
+        # FPS = 60
         text_size = 50
-        speed = 2
-        snake_body = [[x, y]]
 
-        font = self.pg.font.Font(None, text_size)  # Создание объекта шрифта
-        text_surface = font.render('END GAME', True, (255, 255, 255))  # Создание текстовой поверхности
-        range_a = 9
-        range_b = 27
-        n = 10
+        font = self.pg.font.Font(None, text_size)
+        text_surface = font.render('END GAME', True, (255, 255, 255))
+        text_pause = font.render('PAUSE', True, (255, 255, 255))
+        start_text = font.render('PRESS ENTER TO START', True, (255, 255, 255))
+        end_border = (9, 33)
+        n = 1
 
         # start = self.pg.time.get_ticks()
-        stop_game = False
-        move = False
-        running = True
 
-        while running:
-            self.screen_fill(screen, self.background['light_blue'])
-            keys = self.pg.key.get_pressed()
+        while self.game_mod.running:
+            self.screen_fill(screen, self.color.background['light_blue'])
+            keys = pygame.key.get_pressed()
+            # print(keys)
+
+            if not self.game_mod.game_started:
+                screen.blit(start_text, (230, 250))
 
             for event in self.pg.event.get():
                 if event.type == self.pg.QUIT:
-                    running = False
+                    self.game_mod.running = False
                 elif event.type == self.pg.KEYDOWN:
-                    print(event.key)
-                    if event.key == 13 and not move:
-                        speed_x = speed
-                        move = True
-                    elif event.key == 1073741904 and speed_x == 0 and move and not stop_game:
-                        speed_x, speed_y = -speed, 0
-                    elif event.key == 1073741903 and speed_x == 0 and move and not stop_game:
-                        speed_x, speed_y = speed, 0
-                    elif event.key == 1073741906 and speed_y == 0 and move and not stop_game:
-                        speed_x, speed_y = 0, -speed
-                    elif event.key == 1073741905 and speed_y == 0 and move and not stop_game:
-                        speed_x, speed_y = 0, speed
+                    # print(event.key)
+                    if event.key == 27:
+                        self.new_game()
+                    if event.key == 13 and not self.game_mod.game_started:
+                        self.snake.speed_x = self.snake.snake_speed
+                        self.game_mod.game_started = True
+                    if not self.game_mod.end_game and self.game_mod.game_started:
+                        if not self.game_mod.pause:
+                            if event.key == 1073741904 and self.snake.speed_x <= 0:
+                                self.snake.speed_x, self.snake.speed_y = -self.snake.snake_speed, 0
+                                print('LEFT')
+                            elif event.key == 1073741903 and self.snake.speed_x >= 0:
+                                self.snake.speed_x, self.snake.speed_y = self.snake.snake_speed, 0
+                                print('RIGHT')
+                            elif event.key == 1073741906 and self.snake.speed_y <= 0:
+                                self.snake.speed_x, self.snake.speed_y = 0, -self.snake.snake_speed
+                                print('UP')
+                            elif event.key == 1073741905 and self.snake.speed_y >= 0:
+                                self.snake.speed_x, self.snake.speed_y = 0, self.snake.snake_speed
+                                print('DOWN')
+                            if event.key == 32 and self.game_mod.game_started:
+                                self.snake.pause_x, self.snake.pause_y = self.snake.speed_x, self.snake.speed_y
+                                self.snake.speed_x, self.snake.speed_y = 0, 0
+                                self.game_mod.pause = True
+                                print('PAUSE')
+                        else:
+                            self.game_mod.pause = False
+                            self.snake.speed_x, self.snake.speed_y = self.snake.pause_x, self.snake.pause_y
+                            print('UNPAUSE')
+
+                    # elif event.key == 1073741904 and event.key == 1073741905:
+                    #     print()
+                    # elif event.key == 1073741904 and event.key == 1073741906:
+                    #     print()
+                    # elif event.key == 1073741903 and event.key == 1073741905:
+                    #     print()
+                    # elif event.key == 1073741903 and event.key == 1073741906:
+                    #     print()
+
                 # elif event.type == pygame.MOUSEBUTTONDOWN:
                 #     print(f"Клик мыши в позиции {event.pos}")
                 # elif event.type == pygame.MOUSEMOTION:
                 #     print(f"Движение мыши в позицию {event.pos}")
 
-            x += speed_x
-            y += speed_y
-            snake_body.insert(0, [x, y])
-            snake_body = snake_body[:n]
+            self.snake.x += self.snake.speed_x
+            self.snake.y += self.snake.speed_y
 
-            for b in snake_body:
-                self.pg.draw.rect(screen, self.background['light_green'], (b[0], b[1], size, size))
+            # snake_part = self.pg.Rect((self.snake.x, self.snake.y), (self.snake.snake_size, self.snake.snake_size))
+            self.snake.insert_body(self.snake.x, self.snake.y)
+            # snake_body = [snake_part]
+            # snake_body.insert(0, snake_part)
+            # snake_body = snake_body[:self.snake.snake_length]
+
+            # print(snake_body)
+
+            for s_p in self.snake.snake_body:
+                self.pg.draw.rect(screen, self.color.background['light_green'], s_p)
 
             self.pg.draw.lines(screen, (102, 102, 0), True, [(1, 598), (798, 598), (798, 1), (1, 1)], 10)
 
-            if x <= range_a or x >= self.height - range_b or y <= range_a or y >= self.width - range_b:
+            if (self.snake.x <= end_border[0] or self.snake.x >= self.height - end_border[1] or
+                    self.snake.y <= end_border[0] or self.snake.y >= self.width - end_border[1]):
                 screen.blit(text_surface, (300, 250))
-                stop_game = True
-                speed_x, speed_y = 0, 0
+                self.game_mod.end_game = True
+                self.snake.speed_x, self.snake.speed_y = 0, 0
 
-            # x_pos = random.randint(11, 790)
-            # if x_pos not in
-            self.pg.draw.rect(screen, self.background['yellow'], (600, 100, 20, 20))
+            if not self.food.food_lst:
+                coord = self.food.food_coord(self.snake.snake_body[0], self.snake.snake_body[-1], self.snake.snake_size)
+                self.food.food_lst.append(self.pg.Rect(coord, (self.food.food_size, self.food.food_size)))
+            else:
+                for food in self.food.food_lst:
+                    self.pg.draw.rect(screen, self.color.background['yellow'], food)
 
-            # if y <= 10 or y >= 600 - 20:
-            #     speed_y = -speed_y
-            #     print('Отскок')
+                if self.snake.snake_body[0].colliderect(self.food.food_lst[0]):
+                    self.snake.snake_length += 20
+                    self.snake.snake_speed += 0.1
+                    self.food.food_lst.pop()
 
-            # pygame.draw.circle(surface, color, (center_x, center_y), radius)
+            print(self.snake.snake_length)
+            print(n)
 
-            # self.pg.draw.rect(screen, RED, (x, y, 50, 50))
-            # if self.pg.time.get_ticks() >= timer + 5000:
-            #     if speed_x1 >= 0:
-            #         speed_x1 += 2
-            #     else:
-            #         speed_x1 -= 2
-            #
-            #     if speed_y1 >= 0:
-            #         speed_y1 += 2
-            #     else:
-            #         speed_y1 -= 2
-            #
-            #     timer = self.pg.time.get_ticks()
+            if self.game_mod.pause:
+                screen.blit(text_pause, (330, 250))
 
-            # print(speed_x1, speed_y1)
-            # screen.blit(text_surface, (x1, y1))
-
-            # clock.tick(FPS)
             self.pg.time.delay(10)
-
             self.pg.display.flip()
-
-            # pygame.time.delay(3000)
 
         self.quite_pygame()
 
@@ -161,23 +238,12 @@ class PygameManager:
         self.run_program()
 
 
-class Food:
-    def __init__(self, screen, position=None, size=10, color=(255, 255, 0)):
-        if position is None:
-            self.position = (400, 300)
-        self.screen = screen
-        self.size = size
-        self.color = color
-
-    def make_food_on_screen(self, pg):
-        x_pos = random.randint(11, 790)
-        pg.draw.rect(self.screen, self.color, (600, 100, 10, 10))
-
-
 icon = 'schmetterling16.png'
 
-pg = PygameManager(pygame, 800, 600, icon)
-# pg()
+pg = PygameManager(pygame, 800, 600, game_name='Snake', icon=icon)
+pg()
+# print(pg.food_coord([[400, 300]]))
+
 # r, g, b = (random.randint(0, 255) for i in range(3))
 # print(r, g, b)
 #
