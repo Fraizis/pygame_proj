@@ -27,27 +27,21 @@ class Color:
         'grey': (225, 225, 225),
     }
 
-# class Font:
-#     def __init__(self, py_game):
-#         self.pg = py_game
-#         self.font_mod = self.pg.font.Font(None, 50)
-#         self.font_score = self.pg.font.Font(None, 30)
-#         self.text_end_game = self.font_mod.render('END GAME', True, Color().background['white'])
-#         self.text_pause = self.font_mod.render('PAUSE', True, Color().background['white'])
-#         self.start_text = self.font_mod.render('PRESS ENTER TO START', True, Color().background['white'])
-
 
 class Snake:
     def __init__(self, snake_game, x, y):
         self.snake_size = 30
         self.snake_speed = 2
         self.snake_length = 1
+        self.eye_size = 5
         self.snake_game = snake_game
         self.x, self.y = (x, y)
         self.speed_x, self.speed_y = (0, 0)
         self.pause_x, self.pause_y = (0, 0)
-        self.snake_part = self.snake_game.Rect((self.x, self.y), (self.snake_size, self.snake_size))
-        self.snake_body = [self.snake_part]
+        self.snake_body = [self.make_snake_part(self.x, self.y)]
+
+    def make_snake_part(self, x, y):
+        return self.snake_game.Rect((x, y), (self.snake_size, self.snake_size))
 
 
 class Food:
@@ -133,13 +127,11 @@ class PygameManager:
         start_text = font_mod.render('PRESS ENTER TO START', True, self.color.background['white'])
 
         while self.game_mod.running:
+            # Отображаем набранные очки
             score_text = font_score.render(
                 f'SCORE {self.score}', True, self.color.background['grey']
             )
             self.screen_fill(screen, self.color.background['light_blue'])
-
-            if not self.game_mod.game_started:
-                screen.blit(start_text, (230, 250))
 
             for event in self.pg.event.get():
                 if event.type == self.pg.QUIT:
@@ -176,22 +168,36 @@ class PygameManager:
                             self.snake.speed_x, self.snake.speed_y = self.snake.pause_x, self.snake.pause_y
                             print('UNPAUSE')
 
-                # elif event.type == pygame.MOUSEBUTTONDOWN:
-                #     print(f"Клик мыши в позиции {event.pos}")
-                # elif event.type == pygame.MOUSEMOTION:
-                #     print(f"Движение мыши в позицию {event.pos}")
+            if not self.game_mod.game_started:
+                screen.blit(start_text, (230, 250))
 
             self.snake.x += self.snake.speed_x
             self.snake.y += self.snake.speed_y
 
-            new_snake_part = self.pg.Rect((self.snake.x, self.snake.y), (self.snake.snake_size, self.snake.snake_size))
+            new_snake_part = self.snake.make_snake_part(self.snake.x, self.snake.y)
             self.snake.snake_body.insert(0, new_snake_part)
             snake_body = self.snake.snake_body[:self.snake.snake_length]
 
             # Отрисовываем тело змейки
-
             for s_p in snake_body:
                 self.pg.draw.rect(screen, self.color.background['light_green'], s_p)
+
+            if self.snake.speed_x > 0 and self.snake.speed_y == 0:
+                self.pg.draw.rect(
+                    screen,
+                    self.color.background['yellow'],
+                    (self.snake.x + self.snake.snake_size - self.snake.eye_size, self.snake.y, self.snake.eye_size, self.snake.eye_size)
+                )
+                self.pg.draw.rect(
+                    screen,
+                    self.color.background['yellow'],
+                    (
+                        self.snake.x + self.snake.snake_size - self.snake.eye_size,
+                        self.snake.y + self.snake.snake_size - self.snake.eye_size,
+                        self.snake.eye_size,
+                        self.snake.eye_size
+                    )
+                )
 
             # Рисуем границы для большей атмосферности
 
@@ -218,7 +224,7 @@ class PygameManager:
                 self.food.food_lst.append(self.pg.Rect(coord, (self.food.food_size, self.food.food_size)))
             else:
                 for food in self.food.food_lst:
-                    self.pg.draw.rect(screen, self.color.background['yellow'], food)
+                    f = self.pg.draw.rect(screen, self.color.background['yellow'], food)
 
                 # Проверяем сьела ли змейка еду, если да, то увеличиваем длину и скорость
 
